@@ -163,9 +163,6 @@ void MainWindow::on_pushButton_restore_clicked()
     image = image_org.clone();
     QImage img = QImage((const unsigned char*) (image.data), image.cols, image.rows, QImage::Format_RGB888);
     graphshow(img, ui->graphicsView);
-    cv::imshow("image", image);
-
-    cv::waitKey(0);
 }
 
 void MainWindow::on_pushButton_convert_clicked()
