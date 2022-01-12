@@ -401,7 +401,7 @@ namespace IP {
 			cv::Point p2(x, y);
 			//std::cout << -b / a << std::endl;
 			//std::cout << b << std::endl;
-			cv::line(srcimage, p1, p2, cv::Scalar(255,255,255),1);
+            cv::line(srcimage, p1, p2, cv::Scalar(255,0,0),1);
 		}
 		
 

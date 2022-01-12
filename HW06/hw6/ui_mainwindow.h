@@ -83,7 +83,7 @@ public:
         centralwidget->setObjectName(QString::fromUtf8("centralwidget"));
         tabWidget = new QTabWidget(centralwidget);
         tabWidget->setObjectName(QString::fromUtf8("tabWidget"));
-        tabWidget->setGeometry(QRect(50, 110, 941, 681));
+        tabWidget->setGeometry(QRect(50, 110, 931, 681));
         tab = new QWidget();
         tab->setObjectName(QString::fromUtf8("tab"));
         pushButton_openImg1 = new QPushButton(tab);

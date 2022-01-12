@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <string>
+#include <vector>
 #include <opencv2/opencv.hpp>
 
 //float e=2.71828182846;
@@ -19,7 +20,6 @@ namespace IP {
 		RGB2XYZ,
 		RGB2Lab,
 		RGB2YUV,
-
 	};
 
 	enum channel {
@@ -27,7 +27,10 @@ namespace IP {
 		C3,
 	};
 
-
+	enum class histype {
+		horizontal,
+		vertical,
+	};
 
 	namespace Fre {
 
@@ -44,6 +47,43 @@ namespace IP {
         cv::Mat wavy(cv::Mat srcimage, int magnitude, int period);
 		cv::Mat circular(cv::Mat srcimage);
 	};
+
+	class OMR {
+		public:
+			OMR(cv::Mat binaryimage);
+			~OMR();
+			int note_nums;
+			int line_nums;
+			int sol_nums;
+
+			int** note_xy;
+			int* line_y;
+
+			cv::Mat LineRemoved();
+			cv::Mat HorizontalProjection();
+			cv::Mat TemplateMatching(cv::Mat lineremoveimage, cv::Mat template_image);
+			cv::Mat StaffLineRecognition();
+			cv::Mat DrawNotePoint(cv::Mat colorimage);
+			int** NotePoint(cv::Mat binary_templatematchingimage);
+			int* LineLocation(cv::Mat stafflineimage);
+			char* Semantics(int y1, int y2, int y3, int y4, int y5);
+		private:
+			// int* PointCoord(cv::Mat binaryimage, int x, int y);
+			cv::Mat binaryimage;
+			int x;
+			int y;
+			void PointCoord(cv::Mat binary_templatematchingimage, int x, int y);
+			void LineCoord(cv::Mat binaryimage, int y);
+			int* x_y_num_sum; // x_sum, y_sum, num_sum
+			int* y_num_sum;
+			int template_x;
+			int template_y;
+			
+
+			
+
+	};
+
 	cv::Mat resize(cv::Mat srcimage, float scale, channel c);
 	cv::Mat calchistogram(cv::Mat srcimage, int bin, int binscale);
 	cv::Mat hisequalization(cv::Mat srcimage, int bin, int scale);
@@ -53,6 +93,7 @@ namespace IP {
     cv::Mat colortable(float phase_shift);
 	cv::Mat Kmeans_cluster(cv::Mat srcimage, int k,int max_iter);
     cv::Mat HoughTransform(cv::Mat srcimage, cv::Mat binaryimage, int num);
+	
 	float h(float q);
 	void sort(int *arr,int *arr1, int *arr2);
 

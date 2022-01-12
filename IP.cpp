@@ -41,13 +41,12 @@ namespace IP {
 				histdata[value] += 1;
 			}
 		}
-		//int height = histdata[0];
-		int height = 1000;
-		/*for (int i = 0; i < bin; i++) {
+		int height = histdata[0];
+		for (int i = 0; i < bin; i++) {
 			if (histdata[i] > height) {
 				height = histdata[i];
 			}
-		}*/
+		}
 		cv::Mat histimage = cv::Mat(cv::Size(bin * binscale, height), CV_8UC1);
 
 		for (int i = 0; i < bin; i++) {
@@ -58,6 +57,7 @@ namespace IP {
 			}
 		}
 
+		cv::resize(histimage, histimage, cv::Size(640,480));
 		delete[] histdata;
 
 		return histimage;
@@ -527,7 +527,303 @@ namespace IP {
 			return circularimage;
 		}
 	};
-}
+
+	OMR::OMR(cv::Mat binaryimage) {
+		this->binaryimage = binaryimage.clone();
+		this->x = binaryimage.cols;
+		this->y = binaryimage.rows;
+		this->x_y_num_sum = new int[3]{ 0 };
+		this->y_num_sum = new int[2]{ 0 };
+        this->note_xy = new int* [2];
+
+		this->note_nums = 0;
+		this->line_nums = 0;
+		this->sol_nums = 0;
+	}
+	OMR::~OMR() {
+        delete[] this->x_y_num_sum;
+        delete[] this->y_num_sum;
+
+        /*
+		for (int i = 0; i < 2; i++) {
+			delete[] this->note_xy[i];
+		}
+        delete[] this->note_xy;
+        */
+	}
+
+	cv::Mat OMR::HorizontalProjection() {
+
+		int value = 0;
+		int* histdata = new int[y] {0};
+		for (int i = 0; i < y; i++) {
+			value = 0;
+			for (int j = 0; j < x; j++) {
+				if (binaryimage.at<uchar>(i, j) == 0) { value += 1; }
+			}
+			histdata[i] = value;
+		}
+
+		cv::Mat histimage = cv::Mat(binaryimage.size(), CV_8UC1);
+
+		for (int i = 0; i < y; i++) {
+			for (int j = 0; j < x; j++) {
+				cv::Point p1(0, i);
+				cv::Point p2(histdata[i], i);
+				cv::line(histimage, p1, p2, 64);
+			}
+		}
+
+		delete[] histdata;
+
+		return histimage;
+	}
+
+	cv::Mat OMR::TemplateMatching(cv::Mat lineremoveimage, cv::Mat template_image) {
+		this->template_x = template_image.cols;
+		this->template_y = template_image.rows;
+
+		cv::Mat templatematchingimage;
+		cv::cvtColor(template_image, template_image, cv::COLOR_RGB2GRAY);
+		cv::matchTemplate(lineremoveimage, template_image, templatematchingimage, cv::TM_CCORR_NORMED);
+		cv::normalize(templatematchingimage, templatematchingimage, 0, 255, cv::NORM_MINMAX);
+		templatematchingimage = cv::Mat_<uchar>(templatematchingimage);
+		return templatematchingimage;
+	}
+
+	cv::Mat OMR::StaffLineRecognition() {
+		int value = 0;
+		int* histdata = new int[y] {0};
+		for (int i = 0; i < y; i++) {
+			value = 0;
+			for (int j = 0; j < x; j++) {
+				if (binaryimage.at<uchar>(i, j) == 0) { value += 1; }
+			}
+			histdata[i] = value;
+		}
+
+		cv::Mat stafflineimage = binaryimage.clone();
+		for (int i = 0; i < y; i++) {
+			if (histdata[i] > x / 2) {
+				for (int j = 0; j < x; j++) {
+					stafflineimage.at<uchar>(i, j) = 0;
+				}
+			}
+			else {
+				for (int j = 0; j < x; j++) {
+					stafflineimage.at<uchar>(i, j) = 255;
+				}
+			}
+		}
+        delete[] histdata;
+
+		return stafflineimage;
+
+	}
+
+	cv::Mat OMR::LineRemoved() {
+		int value = 0;
+		int* histdata = new int[y] {0};
+
+		cv::Mat dstimage = binaryimage.clone();
+		for (int i = 0; i < y; i++) {
+			value = 0;
+			for (int j = 0; j < x; j++) {
+				if (binaryimage.at<uchar>(i, j) == 0) { value += 1; }
+			}
+			histdata[i] = value;
+		}
+		for (int i = 0; i < y; i++) {
+			if (histdata[i] > x / 2) {
+				for (int j = 0; j < x; j++) {
+					if (!(binaryimage.at<uchar>(i + 1, j) == 0 && binaryimage.at<uchar>(i + 2, j) == 0 && binaryimage.at<uchar>(i - 1, j) == 0 && binaryimage.at<uchar>(i - 2, j) == 0)) {
+						dstimage.at<uchar>(i, j) = 255;
+					}
+				}
+			}
+		}
+        delete[] histdata;
+
+		return dstimage;
+	}
+
+	int** OMR::NotePoint(cv::Mat binary_templatematchingimage) {
+
+		cv::Mat binary_templatematchingimage2 = binary_templatematchingimage.clone();
+
+		int x = binary_templatematchingimage2.cols;
+		int y = binary_templatematchingimage2.rows;
+
+			
+		std::vector<int> note_x;
+		std::vector<int> note_y;
+		
+		// sort. So rows firt, then cols
+		for (int j = 0; j < x; j++) {
+			for (int i = 0; i < y; i++) {
+				if (binary_templatematchingimage2.at<uchar>(i, j) == 255) {
+					// clear x_y_num_sum
+					for (int i = 0; i < 3; i++) { this->x_y_num_sum[i] = 0; }
+					PointCoord(binary_templatematchingimage2, j, i);
+					note_x.push_back(this->x_y_num_sum[0] / this->x_y_num_sum[2]);
+					note_y.push_back(this->x_y_num_sum[1] / this->x_y_num_sum[2]);
+					note_nums++;
+					//cv::imshow("result", binaryimage);
+					//cv::waitKey(0);
+					//std::cout << "------------------" << std::endl;
+				}
+		
+			}
+		}
+		for (int i = 0; i < 2; i++) {
+			this->note_xy[i] = new int[this->note_nums];
+		}
+		for (int i = 0; i < this->note_nums; i++) {
+			this->note_xy[0][i] = note_x[i];
+			this->note_xy[1][i] = note_y[i];
+		}
+		// std::cout << note_nums << std::endl;
+		return this->note_xy;
+	}
+
+	/*
+	int* CP::PointCoord(cv::Mat binaryimage, int x, int y) {
+		int* x_y = new int[2]{x ,y};
+		if (binaryimage.at<uchar>(y, x + 1) == 255) {
+			x_y = PointCoord(binaryimage, x + 1, y);
+			this->x_y_num_sum[0] += x_y[0];
+			this->x_y_num_sum[1] += x_y[1];
+			this->x_y_num_sum[2] += 1;
+		}
+		if (binaryimage.at<uchar>(y, x - 1) == 255) {
+			x_y = PointCoord(binaryimage, x + 1, y);
+			this->x_y_num_sum[0] += x_y[0];
+			this->x_y_num_sum[1] += x_y[1];
+			this->x_y_num_sum[2] += 1;
+		}
+		if (binaryimage.at<uchar>(y + 1, x) == 255) {
+			x_y = PointCoord(binaryimage, x + 1, y);
+			this->x_y_num_sum[0] += x_y[0];
+			this->x_y_num_sum[1] += x_y[1];
+			this->x_y_num_sum[2] += 1;
+		}
+		if (binaryimage.at<uchar>(y - 1, x + 1) == 255) {
+			x_y = PointCoord(binaryimage, x + 1, y);
+			this->x_y_num_sum[0] += x_y[0];
+			this->x_y_num_sum[1] += x_y[1];
+			this->x_y_num_sum[2] += 1;
+		}
+			
+
+		return x_y;
+	}
+	*/
+	void OMR::PointCoord(cv::Mat binary_templatematchingimage, int x, int y) {
+		this->x_y_num_sum[0] += x;
+		this->x_y_num_sum[1] += y;
+		this->x_y_num_sum[2] += 1;
+		binary_templatematchingimage.at<uchar>(y, x) = 0;
+		if (x != binary_templatematchingimage.cols && y != binary_templatematchingimage.rows) {
+			if (binary_templatematchingimage.at<uchar>(y, x + 1) == 255) {
+				PointCoord(binary_templatematchingimage, x + 1, y);
+				//std::cout << "1" << std::endl;
+			}
+			if (binary_templatematchingimage.at<uchar>(y, x - 1) == 255) {
+				PointCoord(binary_templatematchingimage, x - 1, y);
+				//std::cout << "2" << std::endl;
+			}
+			if (binary_templatematchingimage.at<uchar>(y + 1, x) == 255) {
+				PointCoord(binary_templatematchingimage, x, y+1);
+				//std::cout << "3" << std::endl;
+			}
+			if (binary_templatematchingimage.at<uchar>(y - 1, x ) == 255) {
+				PointCoord(binary_templatematchingimage, x, y-1);
+				//std::cout << "4" << std::endl;
+			}
+		}
+	}
+	cv::Mat OMR::DrawNotePoint(cv::Mat colorimage) {
+		cv::Mat Notepoint_image = colorimage.clone();
+		for (int i = 0; i < this->note_nums; i++) {
+			int x_shift = this->template_x / 2;
+			int y_shift = this->template_y - 8;
+			cv::Point center = cv::Point(this->note_xy[0][i] + x_shift, this->note_xy[1][i] + y_shift);
+            cv::circle(Notepoint_image, center, 1, cv::Scalar(255, 0, 0), 1, cv::LINE_AA);
+		}
+		return Notepoint_image;
+	}
+
+	int* OMR::LineLocation(cv::Mat stafflineimage) {
+		std::vector<int> line_y_temp;
+		cv::Mat stafflineimage2 = stafflineimage.clone();
+
+		for (int i = 0; i < y; i++) {
+			// clear y_num_sum
+			for (int i = 0; i < 2; i++) { this->y_num_sum[i] = 0; }
+
+			if (stafflineimage2.at<uchar>(i,0) == 0) {
+				LineCoord(stafflineimage2, i);
+				line_y_temp.push_back(this->y_num_sum[0] / this->y_num_sum[1]);
+				this->line_nums++;
+			}
+		}
+		this->line_y = new int[line_nums] {0};
+		for (int i = 0; i < this->line_nums; i++) {
+			this->line_y[i] = line_y_temp[i];
+			//std::cout << line_y[i] << std::endl;
+		}
+		return this->line_y;
+	}
+
+	void OMR::LineCoord(cv::Mat stafflineimage, int y) {
+		this->y_num_sum[0] += y;
+		this->y_num_sum[1] += 1;
+
+		stafflineimage.at<uchar>(y, 0) = 255;
+		if (y != stafflineimage.rows) {
+			if (stafflineimage.at<uchar>(y + 1, 0) == 0) {
+				LineCoord(stafflineimage, y + 1);
+			}
+		}
+	}
+
+	char* OMR::Semantics(int y1, int y2, int y3, int y4, int y5) {
+		float gap = y2 - y1;
+		float quarter_gap = gap / 4;
+		int y_shift = this->template_y - 8;
+		std::vector<int> note_y;
+		this->sol_nums = 0;
+
+		for (int i = 0; i < this->note_nums; i++) {
+			if ((this->note_xy[1][i]+ y_shift < (y5 + gap + quarter_gap)) && (this->note_xy[1][i]+ y_shift > (y1 - gap - quarter_gap))) {
+
+				note_y.push_back((this->note_xy[1][i])+ y_shift);
+				this->sol_nums++;
+			}
+		}
+        char* solmizations = new char[this->sol_nums+1]{};
+
+		for (int i = 0; i < this->sol_nums; i++) {
+			if (note_y[i] >= y1 - gap - quarter_gap && note_y[i] <= y1 - gap + quarter_gap) { solmizations[i] = 'A'; }
+			else if (note_y[i] > y1 - gap + quarter_gap && note_y[i] <= y1 - quarter_gap) { solmizations[i] = 'G'; }
+			else if (note_y[i] > y1 - quarter_gap && note_y[i] <= y1 + quarter_gap) { solmizations[i] = 'F'; }
+			else if (note_y[i] > y1 + quarter_gap && note_y[i] <= y2 - quarter_gap) { solmizations[i] = 'E'; }
+			else if (note_y[i] > y2 - quarter_gap && note_y[i] <= y2 + quarter_gap) { solmizations[i] = 'D'; }
+			else if (note_y[i] > y2 + quarter_gap && note_y[i] <= y3 - quarter_gap) { solmizations[i] = 'C'; }
+			else if (note_y[i] > y3 - quarter_gap && note_y[i] <= y3 + quarter_gap) { solmizations[i] = 'B'; }
+			else if (note_y[i] > y3 + quarter_gap && note_y[i] <= y4 - quarter_gap) { solmizations[i] = 'A'; }
+			else if (note_y[i] > y4 - quarter_gap && note_y[i] <= y4 + quarter_gap) { solmizations[i] = 'G'; }
+			else if (note_y[i] > y4 + quarter_gap && note_y[i] <= y5 - quarter_gap) { solmizations[i] = 'F'; }
+			else if (note_y[i] > y5 - quarter_gap && note_y[i] <= y5 + quarter_gap) { solmizations[i] = 'E'; }
+			else if (note_y[i] > y5 + quarter_gap && note_y[i] <= y5 + gap - quarter_gap) { solmizations[i] = 'D'; }
+			else if (note_y[i] > y5 + gap - quarter_gap && note_y[i] <= y5 + gap + quarter_gap) { solmizations[i] = 'C'; }
+		}
+        solmizations[this->sol_nums] = '\0';
+
+		return solmizations;
+
+	}
+};
 
 Image::Image(cv::Mat cv_image, image_color c) {
 	this->cols = cv_image.cols;
