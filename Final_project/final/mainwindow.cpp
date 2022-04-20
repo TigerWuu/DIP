@@ -117,21 +117,33 @@ void MainWindow::on_pushButton_done_clicked()
 {
     // ui->graphicsView->scene()->clear(); //the circle object will also be cleared
     int x = ui->graphicsView->size().width();
+    //float y = ui->graphicsView->size().height();
     int y = float(image.rows)/image.cols*x;
+    float scale_x = float(image.cols)/x;
+    float scale_y = float(image.rows)/y;
+
 
     cv::Point2f a(circle_topleft->new_x,circle_topleft->new_y);
     cv::Point2f b(circle_topright->new_x,circle_topright->new_y);
     cv::Point2f c(circle_bottomleft->new_x,circle_bottomleft->new_y);
     cv::Point2f d(circle_bottomright->new_x,circle_bottomright->new_y);
+    // int x = sqrt(pow((a.x-b.x),2)+pow((a.y-b.y),2));
+    // int y = sqrt(pow((a.x-c.x),2)+pow((a.y-c.y),2));
+
+    qDebug()<<x <<y;
     cv::Point2f a1(0,0);
-    cv::Point2f b1(x,0);
-    cv::Point2f c1(0,y);
-    cv::Point2f d1(x,y);
+    cv::Point2f b1(image.cols,0);
+    cv::Point2f c1(0,image.rows);
+    cv::Point2f d1(image.cols,image.rows);
     cv::Point2f src[] = {a,b,c,d};
     cv::Point2f dst[] = {a1,b1,c1,d1};
+    // there are different scale between graphview and image, we need to rescale before we warptransform
+    for (int i=0;i<4;i++) {
+        src[i].x = src[i].x *scale_x;
+        src[i].y = src[i].y *scale_y;
+    }
 
     cv::Mat warpimage = IP::GeoTrans::trapezoidal(image, src, dst);
-
 
     image = warpimage.clone();
 

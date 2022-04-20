@@ -636,9 +636,11 @@ namespace IP {
 		for (int i = 0; i < y; i++) {
 			if (histdata[i] > x / 2) {
 				for (int j = 0; j < x; j++) {
-					if (!(binaryimage.at<uchar>(i + 1, j) == 0 && binaryimage.at<uchar>(i + 2, j) == 0 && binaryimage.at<uchar>(i - 1, j) == 0 && binaryimage.at<uchar>(i - 2, j) == 0)) {
-						dstimage.at<uchar>(i, j) = 255;
-					}
+                    if (i < (y-2) && i>2){
+                        if (!(binaryimage.at<uchar>(i + 1, j) == 0 && binaryimage.at<uchar>(i + 2, j) == 0 && binaryimage.at<uchar>(i - 1, j) == 0 && binaryimage.at<uchar>(i - 2, j) == 0)) {
+                            dstimage.at<uchar>(i, j) = 255;
+                        }
+                    }
 				}
 			}
 		}
@@ -780,7 +782,7 @@ namespace IP {
 		this->y_num_sum[1] += 1;
 
 		stafflineimage.at<uchar>(y, 0) = 255;
-		if (y != stafflineimage.rows) {
+        if (y != stafflineimage.rows-1) {
 			if (stafflineimage.at<uchar>(y + 1, 0) == 0) {
 				LineCoord(stafflineimage, y + 1);
 			}
